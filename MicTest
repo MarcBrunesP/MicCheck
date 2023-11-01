@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Agent Mic Check</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f0f0;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            font-weight: 900;
+            color: black;
+        }
+        #mic-test-container {
+            margin: 20px auto;
+            max-width: 300px;
+        }
+        #start-button {
+            background-color: #E5E7E9;
+            color: black;
+            font-weight: 300;
+            padding: 10px 20px;
+            border: 2px solid black;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #volume-meter {
+            display: none;
+            width: 100%;
+            height: 20px;
+            background: linear-gradient(to right, #00ff00 0%, #ff0000 100%);
+            border: 2px solid black;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        #mic-box {
+            display: none;
+            background-color: #E5E7E9;
+            color: black;
+            font-weight: 300;
+            padding: 10px;
+            border: 2px solid black;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        #mic-device-info {
+            display: none;
+            background-color: #E5E7E9;
+            color: black;
+            font-weight: 300;
+            padding: 10px;
+            border: 2px solid black;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title">Agent Mic Check</h1>
+    <div id="mic-test-container">
+        <button id="start-button">Start Test</button>
+        <div id="volume-meter"></div>
+        <div id="mic-box"></div>
+        <div id="mic-device-info"></div>
+    </div>
+
+    <script>
+        const startButton = document.getElementById('start-button');
+        const volumeMeter = document.getElementById('volume-meter');
+        const micBox = document.getElementById('mic-box');
+        const micDeviceInfo = document.getElementById('mic-device-info');
+        const title = document.getElementById('title');
+
+        let audioContext;
+        let microphoneStream;
+        let analyser;
+
+        function requestMicrophonePermission() {
+            navigator.mediaDevices
+                .getUserMedia({ audio: true })
+                .then((stream) => {
+                    microphoneStream = stream;
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    const microphoneSource = audioContext.createMediaStreamSource(microphoneStream);
+                    microphoneSource.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                    analyser.fftSize = 256;
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                    startButton.style.display = 'none';
+                    volumeMeter.style.display = 'block';
+
+                    const updateVolumeMeter = () => {
+                        analyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+                        const volume = (average / 256) * 5;
+
+                        volumeMeter.style.background = `linear-gradient(to right, #00ff00 ${volume * 20}%, #ff0000 ${volume * 20}%)`;
+
+                        if (volume >= 1) {
+                            micBox.style.display = 'block';
+                            micBox.textContent = getCongratulationsMessage();
+                            micDeviceInfo.style.display = 'block';
+                            showMicrophoneDeviceInfo();
+                        }
+
+                        requestAnimationFrame(updateVolumeMeter);
+                    };
+
+                    updateVolumeMeter();
+                })
+                .catch((error) => {
+                    console.error('Error accessing the microphone:', error);
+                });
+        }
+
+        async function showMicrophoneDeviceInfo() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const microphoneDevices = devices.filter((device) => device.kind === 'audioinput');
+            if (microphoneDevices.length > 0) {
+                micDeviceInfo.textContent = `Microphone: ${microphoneDevices[0].label}`;
+            }
+        }
+
+        function getCongratulationsMessage() {
+            // Detect the user's preferred language
+            const userLanguage = navigator.language || navigator.userLanguage;
+            const supportedLanguages = ['en', 'es', 'nl']; // Supported languages
+
+            // Define translations for the "Congratulations" message and other elements
+            const translations = {
+                en: {
+                    title: 'Agent Mic Check',
+                    startButton: 'Start Test',
+                    congratulations: 'Congratulations, the selected microphone is working 👏',
+                },
+                es: {
+                    title: 'Agente de Verificación de Micrófono',
+                    startButton: 'Iniciar Prueba',
+                    congratulations: '¡Felicidades, el micrófono seleccionado está funcionando 👏',
+                },
+                nl: {
+                    title: 'Agent Microfooncontrole',
+                    startButton: 'Start Test',
+                    congratulations: 'Gefeliciteerd, de geselecteerde microfoon werkt 👏',
+                },
+            };
+
+            // Check if the user's language is supported, default to English if not
+            const language = supportedLanguages.includes(userLanguage.substring(0, 2))
+                ? userLanguage.substring(0, 2)
+                : 'en';
+
+            // Set translations
+            title.textContent = translations[language].title;
+            startButton.textContent = translations[language].startButton;
+
+            return translations[language].congratulations;
+        }
+
+        startButton.addEventListener('click', requestMicrophonePermission);
+    </script>
+</body>
+</html>
